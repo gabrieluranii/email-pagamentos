@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Leitor de Pagamentos</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background: #f4f6f8;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 10px 18px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 25px;
+            background: #fff;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background: #e9ecef;
+        }
+
+        tr.OK {
+            background-color: #d4edda;
+        }
+
+        tr.ALERTA {
+            background-color: #fff3cd;
+        }
+
+        tr.VENCIDO {
+            background-color: #f8d7da;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>📄 Leitor de PDFs de Pagamentos</h1>
+
+<input type="file" id="files" multiple accept=".pdf">
+<br><br>
+
+<button onclick="enviar()">Processar PDFs</button>
+<button onclick="baixarExcel()">Baixar Excel</button>
+
+<table>
+    <thead>
+        <tr>
+            <th>Arquivo</th>
+            <th>Valor</th>
+            <th>Vencimento</th>
+            <th>CNPJ</th>
+            <th>Status</th>
+            <th>Dias Restantes</th>
+        </tr>
+    </thead>
+    <tbody id="resultado"></tbody>
+</table>
+
+<script>
+let dadosGlobais = [];
+
+async function enviar() {
+    const input = document.getElementById("files");
+    const tbody = document.getElementById("resultado");
+    tbody.innerHTML = "";
+
+    if (input.files.length === 0) {
+        alert("Selecione ao menos um PDF");
+        return;
+    }
+
+    const formData = new FormData();
+    for (const file of input.files) {
+        formData.append("files", file);
+    }
+
+    const response = await fetch("http://127.0.0.1:8000/upload", {
+        method: "POST",
+        body: formData
+    });
+
+    const dados = await response.json();
+    dadosGlobais = dados;
+
+    dados.forEach(item => {
+        const tr = document.createElement("tr");
+        tr.className = item["Status"];
+
+        tr.innerHTML = `
+            <td>${item["Arquivo"]}</td>
+            <td>${item["Valor"]}</td>
+            <td>${item["Vencimento"]}</td>
+            <td>${item["CNPJ"]}</td>
+            <td>${item["Status"]}</td>
+            <td>${item["Dias Restantes"]}</td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+}
+
+function baixarExcel() {
+    // apenas baixa o arquivo já gerado no backend
+    window.location.href = "http://127.0.0.1:8000/download-excel";
+}
+</script>
+
+</body>
+</html>
