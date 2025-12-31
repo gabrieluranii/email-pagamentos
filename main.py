@@ -1,13 +1,14 @@
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, UploadFile, File, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.requests import Request
-import os
+
 from typing import List
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from pathlib import Path
+import os
 import pandas as pd
+
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 
@@ -17,6 +18,17 @@ from openpyxl.styles import PatternFill
 import app_parser.pdf_reader as pdf_reader
 import app_parser.extrator as extrator
 from app_parser.alertas import calcular_alerta
+
+# ==============================
+# BASE DIR (Railway safe)
+# ==============================
+BASE_DIR = Path(__file__).resolve().parent
+UPLOAD_DIR = BASE_DIR / "uploads"
+DATA_DIR = BASE_DIR / "data"
+EXCEL_PATH = DATA_DIR / "pagamentos.xlsx"
+
+UPLOAD_DIR.mkdir(exist_ok=True)
+DATA_DIR.mkdir(exist_ok=True)
 
 # ==============================
 # APP
@@ -30,10 +42,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app = FastAPI()
+# ==============================
+# FRONTEND
+# ==============================
+app.mount(
+    "/static",
+    StaticFiles(directory=BASE_DIR / "static"),
+    name="static"
+)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
@@ -41,23 +59,13 @@ def home(request: Request):
         "index.html",
         {"request": request}
     )
-    
-# ==============================
-# DIRETÓRIOS
-# ==============================
-UPLOAD_DIR = "uploads"
-DATA_DIR = "data"
-EXCEL_PATH = os.path.join(DATA_DIR, "pagamentos.xlsx")
-
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(DATA_DIR, exist_ok=True)
 
 # ==============================
-# ROTAS
+# HEALTHCHECK
 # ==============================
-@app.get("/")
-def home():
-    return {"status": "API online"}
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 # ==============================
 # UPLOAD E PROCESSAMENTO
@@ -70,7 +78,7 @@ async def upload_pdfs(files: List[UploadFile] = File(...)):
         if not file.filename.lower().endswith(".pdf"):
             continue
 
-        caminho = os.path.join(UPLOAD_DIR, file.filename)
+        caminho = UPLOAD_DIR / file.filename
 
         with open(caminho, "wb") as f:
             f.write(await file.read())
@@ -89,9 +97,6 @@ async def upload_pdfs(files: List[UploadFile] = File(...)):
             "Dias Restantes": dias
         })
 
-    # ==============================
-    # GERAR EXCEL
-    # ==============================
     df = pd.DataFrame(registros)
     df.to_excel(EXCEL_PATH, index=False)
 
@@ -102,9 +107,9 @@ async def upload_pdfs(files: List[UploadFile] = File(...)):
     ws = wb.active
 
     cores = {
-        "OK": "C6EFCE",       # verde
-        "ALERTA": "FFEB9C",   # amarelo
-        "VENCIDO": "FFC7CE"   # vermelho
+        "OK": "C6EFCE",
+        "ALERTA": "FFEB9C",
+        "VENCIDO": "FFC7CE"
     }
 
     for row in range(2, ws.max_row + 1):
